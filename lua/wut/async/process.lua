@@ -1,14 +1,13 @@
-local Job = {}
+local Process = {}
 
-function Job:new(opts)
+function Process:new(opts)
   assert(type(opts) == "table")
   assert(type(opts.cmd) == "string")
 
-  local job = {
+  local process = {
     _handle = nil,
     _pid = nil,
-    _state = "CREATED",
-    _stdin = vim.loop.new_pipe(false),
+    _stdin = vim.loop.new_pipe(false), -- FIXME: not implemented
     _stdout = vim.loop.new_pipe(false),
     _stderr = vim.loop.new_pipe(false),
     _result = "",
@@ -20,12 +19,12 @@ function Job:new(opts)
     _cb_on_exit = opts.on_exit,
   }
 
-  return setmetatable(job, {
+  return setmetatable(process, {
     __index = self,
   })
 end
 
-function Job:start()
+function Process:start()
   local spawn_options = {
     stdio = {
       self._stdin,
@@ -78,4 +77,4 @@ function Job:start()
   end)
 end
 
-return Job
+return Process

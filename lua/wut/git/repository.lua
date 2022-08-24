@@ -1,4 +1,4 @@
-local Job = require "wut/job"
+local Process = require "wut/async/process"
 
 local Repository = {}
 
@@ -26,7 +26,7 @@ end
 function Repository:exec(args, callback)
   assert(type(args) == "table")
 
-  Job:new({
+  Process:new({
     cmd = self._bin,
     cwd = self._root,
     args = args,
@@ -92,7 +92,7 @@ function Repository:diff_from_text(file, text)
   assert(type(file) == "string")
   assert(type(text) == "string")
 
-  vim.pretty_print(vim.fn.tempname())
+  local temp_file = vim.fn.tempname()
 end
 
 function Repository:files()
