@@ -12,10 +12,10 @@ I'm trying to create my ideal neovim experience without using any 3rd-party plug
 
 My ideal goal is to have all the plugins to work independly, but I'm not sure yet if worth the cost of the code duplication.
 
-### Features
+### Planned features
 
-- [ ] plugin manager
-- [ ] statusline
+- [x] main scheduler
+- [x] statusline
 - [ ] workspace manager
 - [ ] file explorer framework
 - [ ] git provider
@@ -24,14 +24,76 @@ My ideal goal is to have all the plugins to work independly, but I'm not sure ye
 - [ ] linter and formatter stuff
 - [ ] fuzzy finder (dont know yet, fzf?)
 - [ ] colorscheme? (base16 based)
+- [ ] plugin manager
 
 ## Docs
+
+### core
+
+The main module of `wut`. The core module exposes the scheduler used for all other
+modules inside `wut`. You can attach any lua function to the scheduler if you want to,
+but is recommended that you use the `Promise` module instead to run async operations.
+
+```lua
+local core = require("wut/core")
+
+-- Init the core timer. This timer will be run every loop asyncronisoly passing
+-- the tick to the scheduler. This way the scheduler will loop through all "ready"
+-- threads and let them execute one more time until finishes. All threads created
+-- by the scheduler is a new lua native coroutine.
+core.init()
+
+-- Use the scheduler to spawn a new function to be processed. You can pass a thread
+-- created by `courotine.create(fn)` as well.
+core.scheduler:spawn {
+  fn = function()
+    -- ...some operation
+  end,
+  priority = 10,
+}
+```
+
+Located at `lua/wut/core`.
+
+### core.promise
+
+An implementation of `Promise` based of the Javascript promise object. The new
+promise created will be executed inside the `core.scheduler` until it resolves
+or reject.
+
+The promise life cycle:
+
+1. when created, "pending"
+2. until it is being executed, "pending"
+3. if resolves, "resolved"
+4. if rejects, "rejected"
+5. done.
+
+```lua
+local Promise = require("wut/core/promise")
+
+local my_number = 10
+
+Promise:new(function(resolve, reject)
+  if type(my_number) ~= "number" then
+    reject("Not a number")
+  else
+    resolve(my_number > 20)
+  end
+end):next(function(result)
+  vim.pretty_print("The result is: " .. result)
+end):catch(function(err)
+  vim.pretty_print("Error occoured: " .. err)
+end):start()
+```
+
+Located at `lua/wut/core/promise`.
 
 ### statusline
 
 A statusline builder framework without hassle.
 
-Located at `wut/statusline`.
+Located at `lua/wut/statusline`.
 
 ```lua
 require("wut/statusline").setup {
