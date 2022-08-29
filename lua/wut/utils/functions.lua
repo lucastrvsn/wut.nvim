@@ -14,4 +14,14 @@ M.throttle = function(callback, ms)
   end
 end
 
+M.is_function = function(fn)
+  if type(fn) == "table" then
+    local _metatable = getmetatable(fn)
+
+    return _metatable ~= nil and type(_metatable.__call) == "function"
+  end
+
+  return type(fn) == "function"
+end
+
 return M

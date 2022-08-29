@@ -1,6 +1,6 @@
-local Stack = {}
+local Queue = {}
 
-function Stack:new()
+function Queue:new()
   local stack = {
     _nodes = {},
   }
@@ -10,20 +10,20 @@ function Stack:new()
   })
 end
 
-function Stack:push(item)
+function Queue:add(item)
   table.insert(self._nodes, item)
 end
 
-function Stack:pop()
-  return table.remove(self._nodes)
+function Queue:remove()
+  return table.remove(self._nodes, 1)
 end
 
-function Stack:is_empty()
+function Queue:is_empty()
   return #self._nodes == 0
 end
 
-function Stack:length()
+function Queue:length()
   return #self._nodes
 end
 
-return Stack
+return Queue

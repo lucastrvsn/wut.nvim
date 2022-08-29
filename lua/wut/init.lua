@@ -5,6 +5,8 @@ local statusline = require "wut/statusline"
 local M = {}
 
 M.setup = function()
+  require("wut/core").init()
+
   workspace.setup {}
 
   git.setup {}
@@ -32,53 +34,73 @@ M.setup = function()
     end,
   }
 
-  local Fragment = require "wut/ui/fragment"
+  local Window = require "wut/ui/window"
+  local f = require "wut/ui/fragment"
   local use_state = require "wut/ui/use_state"
-  local EventTypes = require "wut/events/types"
+  local use_effect = require "wut/ui/use_effect"
+  local use_cursor = require "wut/ui/use_cursor"
+  local ui = require "wut/ui"
 
-  local s, set_s = use_state "my_cool_string"
+  local Promise = require "wut/core/promise"
+  Promise:new(function(resolve, reject)
+    local tt = vim.loop.new_timer()
+    tt:start(
+      1000,
+      0,
+      vim.schedule_wrap(function()
+        tt:close()
 
-  local w = require("wut/ui/window"):new {
-    render = function()
-      return { "oi" .. s }
-    end,
-  }
-  set_s "another_string"
+        require("wut/git/helpers")
+          .git_root(vim.fn.getcwd())
+          :next(resolve)
+          :catch(reject)
+          :start()
+      end)
+    )
+  end)
+    :next(function(result)
+      print("data received 1:", result)
+    end)
+    :catch(function(err)
+      vim.pretty_print("error:::::", err)
+    end)
+    :start()
 
-  -- local w = require("wut/ui/window"):new {
-  --   options = {
-  --     close_when_unfocus = true,
-  --   },
-  --   view = Fragment:new {
-  --     state = {
-  --       index = 0,
-  --     },
-  --     events = {
-  --       EventTypes.Ready,
-  --     },
-  --     on_update = function(state, set_state)
-  --       set_state { index = state.index + 1 }
-  --       return true
-  --     end,
-  --     render = function(state)
-  --       return {
-  --         Fragment:new {
-  --           render = function()
-  --             return "Files " .. state.index
-  --           end,
-  --         },
-  --         Fragment:new {
-  --           render = function()
-  --             return result
-  --           end,
-  --         },
-  --       }
-  --     end,
-  --   },
-  -- }
+  ui.setup()
+
+  local window = Window:new(function()
+    local s, set_s = use_state "my_cool_string"
+    local n, set_n = use_state(0)
+    local cursor = use_cursor {
+      on_move = function()
+        set_s "my cursor moved!!!!!"
+      end,
+    }
+
+    use_effect(function()
+      set_n(function(prev)
+        return prev + 1
+      end)
+    end, {})
+
+    use_effect(function()
+      vim.pretty_print "timer 1"
+
+      local timer = vim.loop.new_timer()
+      timer:start(2000, 0, function()
+        set_s "another_string"
+        vim.pretty_print(s)
+        timer:close()
+      end)
+    end, {})
+
+    return f { "oi" }
+  end)
+
+  ui.register_window(window)
 
   vim.keymap.set("n", "<Leader>-", function()
-    w:open()
+    window:open()
   end)
 end
 

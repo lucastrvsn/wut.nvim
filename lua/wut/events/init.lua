@@ -2,9 +2,9 @@ local M = {
   _listeners = {},
 }
 
-M.notify = function(event, payload)
+M.notify = function(event, ...)
   for _, cb in ipairs(M._listeners[event]) do
-    cb(payload)
+    cb(...)
   end
 end
 

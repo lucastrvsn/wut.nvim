@@ -1,17 +1,18 @@
-local ui = require "wut/ui"
+local dispatch = require("wut/ui").dispatch
+local hooks = require "wut/ui/hooks"
 
-local M = {
-  value = 0,
-}
+return function(initial_value)
+  local _index = hooks.get_index()
 
-return setmetatable(M, {
-  __call = function(_, initial_value)
-    M.value = initial_value or nil
+  hooks.set(_index, hooks.get_value(_index) or initial_value)
 
-    local set_value = ui.dispatch(function(new_value)
-      M.value = new_value
-    end)
+  local set_value = dispatch(function(new_value)
+    if type(new_value) == "function" then
+      hooks.set(_index, new_value(hooks.get_value(_index)))
+    else
+      hooks.set(_index, new_value)
+    end
+  end, true)
 
-    return M.value, set_value
-  end,
-})
+  return hooks.get_value(_index, true), set_value
+end

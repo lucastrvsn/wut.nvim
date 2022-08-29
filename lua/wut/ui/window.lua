@@ -1,33 +1,44 @@
-local Stack = require "wut/utils/stack"
-local events = require "wut/events"
-local EventTypes = require "wut/events/types"
+local renderer = require "wut/ui/renderer"
+local hooks = require "wut/ui/hooks"
 
+---@class Component
+
+---@class WindowOptions
+---@field should_close boolean
+
+---@class Window
+---@field ___type "UIWindow"
+---@field ___id integer | nil
+---@field ___win integer | nil
+---@field ___bufnr integer | nil
+---@field ___root_component Component
+---@field ___options WindowOptions
 local Window = {}
 
-function Window:new(opts)
+---@param root Component
+---@param opts WindowOptions
+---@return Window
+function Window:new(root, opts)
   local window = {
     ___type = "UIWindow",
+    ___id = nil,
     ___win = nil,
     ___bufnr = nil,
+    ___root_component = nil,
     ___options = nil,
-    ___view = nil,
   }
 
-  window.___bufnr = vim.api.nvim_create_buf(false, false)
-  assert(window.___bufnr ~= 0)
+  if type(root) ~= "function" then
+    error "should be function"
+  end
 
-  window.___options = opts.options or {}
-  window.___view = opts.view or {}
+  window.___root_component = root
 
-  window.___render = opts.render
-  if type(window.___render) ~= "function" then
+  if opts and type(opts) ~= "table" then
     vim.pretty_print "ERROR"
   end
 
-  events.subscribe(EventTypes.UIWindowUpdate, function()
-    window:_render()
-    vim.pretty_print "update"
-  end)
+  window.___options = opts or {}
 
   return setmetatable(window, {
     __index = self,
@@ -35,26 +46,30 @@ function Window:new(opts)
 end
 
 function Window:on_init()
-  vim.pretty_print "panel init"
+  self.___bufnr = vim.api.nvim_create_buf(false, true)
+
+  if self.___bufnr == 0 then
+    error "ERROR"
+  end
+
+  vim.pretty_print "Hello!"
+
+  return true
 end
 
 function Window:on_exit()
-  vim.pretty_print "panel exit"
+  vim.pretty_print "Goodbye."
 end
 
 function Window:on_open()
-  self:_render()
+  vim.api.nvim_create_autocmd({ "WinLeave" }, {
+    buffer = self.___bufnr,
+    callback = function()
+      self:close()
+    end,
+  })
 
-  if self.___options.close_when_unfocus then
-    vim.api.nvim_create_autocmd({ "WinLeave" }, {
-      buffer = self.___bufnr,
-      callback = function()
-        self:close()
-      end,
-    })
-  end
-
-  vim.keymap.set("n", "<Leader>.", function()
+  vim.keymap.set("n", "<ESC>", function()
     self:close()
   end, {
     buffer = self.___bufnr,
@@ -65,41 +80,18 @@ function Window:on_close()
   vim.pretty_print "im closing..."
 end
 
-function Window:_render()
-  local r = self.___render()
-  vim.pretty_print(r)
-end
-
 function Window:render()
-  local result = {}
-  local stack = Stack:new()
-  stack:push(self.___view)
+  _G._wut_current_window = self.___id
 
-  while not stack:is_empty() do
-    local view = stack:pop()
-    local render = view:render(view:get_state())
+  local result = renderer.render(self.___root_component)
 
-    if type(render) == "string" then
-      table.insert(result, render)
-    elseif type(render) == "table" then
-      for _, f in ipairs(render) do
-        if f.___type == "UIFragment" then
-          stack:push(f)
-          goto continue
-        end
+  hooks.reset()
 
-        if type(f) == "string" then
-          table.insert(result, f)
-        elseif type(f) == "function" then
-          table.insert(result, f())
-        end
-
-        ::continue::
-      end
-    end
+  if type(result) == "string" then
+    vim.schedule(function()
+      vim.api.nvim_buf_set_lines(self.___bufnr, 0, -1, false, { result })
+    end)
   end
-
-  vim.api.nvim_buf_set_lines(self.___bufnr, 0, -1, false, result)
 end
 
 function Window:open()
