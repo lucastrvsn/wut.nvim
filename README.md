@@ -1,4 +1,4 @@
-# wut
+# wut 🦩
 
 Highly opinionated neovim plugins
 
