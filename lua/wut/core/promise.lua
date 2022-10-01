@@ -23,22 +23,17 @@ SOFTWARE.
 ---@module "wut.core.promise"
 
 local core = require "wut/core"
-local types = require "wut/core/types"
 local is_function = require("wut/utils/functions").is_function
 
 ---@class Promise
 ---@field ["@@type"] "Promise" The identifier of this object
 ---@field _thread string The scheduler thread this promise will be run.
----@field _fn function(resolve, reject) Function to be executed asyncronusly and will call `resolve` or `reject`.
----@field _state Promise.State Current state of the Promise. "pending", "resolved", "reject".
+---@field _executor function(resolve, reject) Function to be executed asyncronusly and will call `resolve` or `reject`.
+---@field _state Promise.State Current state of the Promise. "pending", "resolved", "rejected".
 ---@field _data any The data returned by the resolver callback.
 ---@field _cb_resolve function[]
 ---@field _cb_reject function[]
----@field next function
----@field catch function
----@field start function
 
----@type Promise
 local Promise = {}
 
 ---@enum Promise.State
@@ -48,26 +43,21 @@ Promise.State = {
   REJECTED = "rejected",
 }
 
----@param fn function
----@return Promise
 ---Create a new Promise to be handled by the scheduler
-function Promise:new(fn)
-  ---@type Promise
+---@param executor fun(resolve: fun(...), reject?: fun(...))
+function Promise:new(executor)
   local promise = {
-    ["@@type"] = types.PROMISE,
-    _thread = nil,
-    _fn = nil,
-    _state = nil,
+    ["@@type"] = "Promise",
     _data = nil,
     _cb_resolve = {},
     _cb_reject = {},
   }
 
-  if not is_function(fn) then
+  if not is_function(executor) then
     error "not a function"
   end
 
-  promise._fn = fn
+  promise._executor = executor
   promise._state = Promise.State.PENDING
 
   return setmetatable(promise, {
@@ -75,32 +65,35 @@ function Promise:new(fn)
   })
 end
 
+---Create the callback that is going to be pass to the initial function. Internal use only.
 ---@param state Promise.State
 ---@return function
----Create the callback that is going to be pass to the initial function. Internal use only.
 function Promise:_resolver(state)
   return function(...)
     self._state = state
     self._data = { ... }
+    vim.pretty_print("to aqui", state, ...)
   end
 end
 
 ---Handle the promise resolved state.
 function Promise:_handle()
   if self._state ~= Promise.State.PENDING then
-    local handler = function(callbacks)
+    local function handler(callbacks)
       for _, cb in ipairs(callbacks) do
-        cb(unpack(self._data))
+        vim.pretty_print(pcall(cb, unpack(self._data)))
       end
     end
 
     if self._state == Promise.State.RESOLVED then
+      vim.pretty_print "handle resolved"
       handler(self._cb_resolve)
     elseif self._state == Promise.State.REJECTED then
+      vim.pretty_print "handle rejected"
       handler(self._cb_reject)
     end
   else
-    error "Promise was resolved in pending state"
+    error(debug.traceback "Promise was resolved in pending state")
   end
 end
 
@@ -134,20 +127,23 @@ function Promise:state()
 end
 
 function Promise:start()
-  self._thread = core.scheduler:spawn {
-    fn = function()
-      self._fn(
-        self:_resolver(Promise.State.RESOLVED),
-        self:_resolver(Promise.State.REJECTED)
-      )
+  self._thread = core.scheduler():spawn(function()
+    local ok, err = pcall(
+      self._executor,
+      Promise._resolver(self, Promise.State.RESOLVED),
+      Promise._resolver(self, Promise.State.REJECTED)
+    )
 
-      core.scheduler:wait_until(function()
+    if not ok then
+      error(debug.traceback(err))
+    else
+      core.scheduler():wait_until(function()
         return self._state ~= Promise.State.PENDING
       end)
 
       self:_handle()
-    end,
-  }
+    end
+  end)
 end
 
 function Promise.race() end

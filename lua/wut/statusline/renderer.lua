@@ -1,5 +1,30 @@
+--[[
+Copyright (c) 2022 Lucas Trevisan (lucastrvsn@gmail.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+]]
+
+---@module "wut.statusline.renderer"
+
 local M = {}
 
+---@param module string | table
 local render_to_string = function(module)
   local highlight = nil
 
@@ -16,7 +41,7 @@ local render_to_string = function(module)
   return module.content .. "%0*"
 end
 
--- param module string|table
+---@param module string | table
 local parse_module = function(module)
   if type(module) == "table" then
     if type(module.items) == "table" then
@@ -41,13 +66,13 @@ M.render = function(modules)
   for _, module in ipairs(modules) do
     if type(module) == "table" then
       if type(module.condition) == "function" and not module.condition() then
-        goto end_loop
+        goto continue
       end
 
       result = result .. parse_module(module.render())
     end
 
-    ::end_loop::
+    ::continue::
   end
 
   return result

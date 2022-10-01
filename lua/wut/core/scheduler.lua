@@ -22,34 +22,39 @@ SOFTWARE.
 ]]
 
 ---The original implementation of this source code can be found at:
----@source https://mode13h.io/coroutines-scheduler-in-lua/
+---@see https://mode13h.io/coroutines-scheduler-in-lua/
 
 ---@module "wut.core.scheduler"
 
 local Thread = require "wut/core/thread"
-local types = require "wut/core/types"
+
+---@class SchedulerConstructor
 
 ---@class Scheduler
 ---@field ["@@type"] "Scheduler"
+---@field _thread thread The main scheduler coroutine thread
 ---@field _pool table<thread, Thread.Params> All current running threads
----@field _ready table<thread, Thread.Params> Thread with "ready" state
+---@field _ready table<thread, Thread.Params> Threads with "ready" state
+---@field _thread_count number The number of threads running
+---@field new fun(): Scheduler
+---@field init fun()
+---@field yield function
+---@field wait function
+---@field wait_until function
+---@field signal function
+---@field spawn function
+---@field tick function
+---@field dump function
 
----@type Scheduler
 local Scheduler = {}
-
----@enum Scheduler.State
-Scheduler.State = {
-  IDLE = 1,
-  RUNNING = 2,
-  DEAD = 3,
-}
 
 ---@return Scheduler
 function Scheduler:new()
-  ---@type Scheduler
   local scheduler = {
-    ["@@type"] = types.SCHEDULER,
-    _state = Scheduler.State.IDLE,
+    ["@@type"] = "Scheduler",
+    private = {},
+    _thread = nil,
+    _thread_count = 0,
     _pool = {},
     _ready = {},
   }
@@ -59,9 +64,29 @@ function Scheduler:new()
   })
 end
 
+---Start the coroutine which will run the main loop of the scheduler
+function Scheduler:init()
+  self._thread = coroutine.create(function()
+    while true do
+      self:tick()
+
+      if self._thread_count == 0 then
+        -- If we don't have any thread to run, yield itself until
+        -- we've other thread to be run
+        coroutine.yield()
+      else
+        vim.schedule(function()
+          coroutine.resume(self._thread)
+        end)
+        coroutine.yield()
+      end
+    end
+  end)
+end
+
 ---@async
 ---@param ... any
----Yield the scheduler
+---Yield the current thread
 function Scheduler:yield(...)
   local thread = coroutine.running()
 
@@ -90,7 +115,7 @@ end
 ---@param fn fun(): boolean
 ---@param ... any
 ---@return thread
----Suspend the current thread until the "fn" function return true
+---Suspend the current thread until the `fn` function return true
 function Scheduler:wait_until(fn, ...)
   local thread = coroutine.running()
 
@@ -113,35 +138,51 @@ function Scheduler:signal(id)
   end
 end
 
+---Awake the scheduler if needed when we're in the `suspended` state
+function Scheduler:awake()
+  if coroutine.status(self._thread) == "suspended" then
+    local ok, result = coroutine.resume(self._thread)
+
+    if not ok then
+      error(debug.traceback(result))
+    end
+  end
+end
+
 ---@class Scheduler.Spawn.Options
----@field fn function
 ---@field priority? number
 
+---@param fn function | thread
 ---@param opts Thread.Create.Options
 ---@param ... any
 ---@return string id The new thread id
-function Scheduler:spawn(opts, ...)
-  local thread, params = Thread.create(opts, ...)
+function Scheduler:spawn(fn, opts, ...)
+  local thread, params = Thread.create(fn, opts, ...)
 
   self._pool[thread] = params
+  self._thread_count = self._thread_count + 1
 
   table.sort(self._pool, function(a, b)
     return a.priority > b.priority
   end)
 
+  self:awake()
+
   return params.id
 end
 
 function Scheduler:tick()
-  self._ready = {}
-
   for thread, params in pairs(self._pool) do
     local status = coroutine.status(thread)
 
     if status == "dead" then
       self._pool[thread] = nil
+      self._thread_count = self._thread_count - 1
     elseif status == "suspended" then
-      if params.status == Thread.State.CHECKING then
+      if params.status == Thread.State.ERROR then
+        -- TODO: handle this error state
+        vim.pretty_print "ERROR"
+      elseif params.status == Thread.State.CHECKING then
         if params.value() then
           params.status = Thread.State.READY
           params.value = nil
@@ -154,19 +195,31 @@ function Scheduler:tick()
     end
   end
 
-  for _, thread in ipairs(self._ready) do
+  -- Run all threads in `ready` state
+  while #self._ready > 0 do
+    local thread = table.remove(self._ready)
     local params = self._pool[thread]
     params.status = Thread.State.RUNNING
-    coroutine.resume(thread, unpack(params.args))
+
+    local ok, data = coroutine.resume(thread, unpack(params.args))
+
+    if not ok then
+      params.status = Thread.State.ERROR
+      error(debug.traceback(data))
+    end
+    -- elseif data ~= nil then
+    --   self._pool[thread].status = Thread.State.READY
+    --   self._pool[thread].args = { data }
+    -- end
   end
 end
 
 function Scheduler:dump()
   for thread, params in pairs(self._pool) do
-    print(thread)
     print(
       string.format(
-        "  %d %d %s",
+        "[%s] priority:%d status:%d coroutine:%s",
+        thread,
         params.priority,
         params.status,
         coroutine.status(thread)

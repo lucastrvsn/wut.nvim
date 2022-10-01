@@ -1,6 +1,6 @@
 # wut 🦩
 
-Highly opinionated neovim plugins
+Highly opinionated neovim personal development environment
 
 ### Note
 
@@ -8,23 +8,56 @@ Please, **don't use this at the current state**. I'm developing all the plugins 
 
 ### Goal
 
-I'm trying to create my ideal neovim experience without using any 3rd-party plugins. All the plugins found in this repository needs to be self-contained and work without any issues.
+I don't have a pre-defined end-game goal yet, but I'm trying to create a really cool interface for me to create good plugins for neovim, and neovim only.
 
-My ideal goal is to have all the plugins to work independly, but I'm not sure yet if worth the cost of the code duplication.
+I'm trying to create my ideal neovim experience without using any 3rd-party plugins. All the plugins found in this repository needs to be self-contained and work without any issues. My ideal goal is to have all the plugins to work independly, but I'm not sure yet if worth the cost of the code duplication.
+
+### Requirements
+
+- [neovim](https://neovim.io/) - 0.7 or newer
+- [neovim-tree-sitter](https://github.com/nvim-treesitter/nvim-treesitter/) - Used to create the syntax highlighting of some portions of the buffers created by `wut`. (I have no plans to support vim's `syntax`)
+- [neovim-lsp](https://github.com/neovim/nvim-lspconfig/) - Used to retrieve information of the current project. (I have no plans to support `coc`, `ale`, etc)
+- [git](https://github.com/sharkdp/fd/)<sup>\*</sup> - Used to get information of the repository you're working.
+- [fd](https://github.com/sharkdp/fd/)<sup>\*\*</sup> - Used as the default file system query.
+- [ripgrep](https://github.com/BurntSushi/ripgrep/)<sup>\*\*</sup> - Used as the default search engine.
+
+<sup>\* Will be disabled if you don't have `git` installed or in the current folder.</sup> 
+<sup>\*\* Optional dependencies if you want to use others providers.</sup> 
 
 ### Planned features
 
-- [x] main scheduler
-- [x] statusline
+- [ ] core module
+  - [x] main scheduler
+    - [x] work nicely with the neovim event loop
+    - [x] priority execution
+    - [x] wait/wait_until/yield current thread
+    - [ ] task cancellation
+  - [x] javascript promise-like async functions
+  - [ ] async/await wrappers
 - [ ] workspace manager
-- [ ] file explorer framework
+  - [ ] file system providers
+  - [ ] source control managers providers
+  - [ ] decoration providers
+  - [ ] common api
+- [ ] statusline
+  - [x] define statusline elements
+  - [x] elements alignment left/center/right
+  - [x] possibility to add custom elements
+  - [x] be async for default
+  - [ ] correctly manages multiple buffers
+  - [ ] builtin elements
+    - [x] lsp diagnostics
+    - [x] filename
+    - [x] current mode
+    - [ ] scm integration
+- [ ] file explorer framework (with fd, initially)
 - [ ] git provider
 - [ ] ui builder framework
 - [ ] completion framework
 - [ ] linter and formatter stuff
-- [ ] fuzzy finder (dont know yet, fzf?)
+- [ ] fuzzy finder (dont know yet, rg?)
 - [ ] colorscheme? (base16 based)
-- [ ] plugin manager
+- [ ] plugin manager? (manage itself)
 
 ## Docs
 

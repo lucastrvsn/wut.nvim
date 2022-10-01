@@ -37,36 +37,38 @@ Thread.State = {
   RUNNING = 2,
   WAITING = 3,
   CHECKING = 4,
+  ERROR = 5,
 }
 
 ---@class Thread.Create.Options
----@field fn function | thread
 ---@field priority? integer
 
----@param opts Thread.Create.Options
+---@param fn function | thread
+---@param opts? Thread.Create.Options
 ---@param ... any
 ---@return thread, Thread.Params
-Thread.create = function(opts, ...)
+Thread.create = function(fn, opts, ...)
+  local _opts = opts or {}
+
   ---@diagnostic disable-next-line
   vim.validate {
-    ["opts"] = { opts, "table" },
-    ["opts.fn"] = { opts.fn, { "function", "thread" } },
-    ["opts.priority"] = { opts.priority, "number", true },
+    ["fn"] = { fn, { "function", "thread" } },
+    ["opts"] = { _opts, "table", true },
+    ["opts.priority"] = { _opts.priority, "number", true },
   }
 
   local thread
-  if type(opts.fn) == "thread" then
-    thread = opts.fn
+  if type(fn) == "thread" then
+    thread = fn
   else
     thread = coroutine.create(
-      opts.fn --[[@as function]]
+      fn --[[@as function]]
     )
   end
 
-  local id = vim.fn.id(tostring(thread))
   local params = {
-    id = id,
-    priority = opts.priority or 0,
+    id = vim.fn.id(tostring(thread)),
+    priority = _opts.priority or 0,
     args = { ... },
     status = Thread.State.READY,
     value = nil,
@@ -74,6 +76,15 @@ Thread.create = function(opts, ...)
 
   return thread --[[@as thread]],
     params
+end
+
+Thread.to_string = function(params)
+  return string.format(
+    "An error occoured inside this thread. ID: %s, PRIORITY: %s, STATUS: %s",
+    params.id,
+    params.priority,
+    params.status
+  )
 end
 
 return Thread

@@ -1,22 +1,30 @@
 local Scheduler = require "wut/core/scheduler"
 
 local M = {
-  scheduler = Scheduler:new(),
+  _scheduler = Scheduler:new(),
 }
 
 M.init = function()
-  local last_time = vim.loop.now()
-  local timer = vim.loop.new_timer()
+  -- local timer = vim.loop.new_timer()
+  --
+  -- timer:start(
+  --   0,
+  --   1000,
+  --   vim.schedule_wrap(function()
+  --     M._scheduler:tick()
+  --     M._scheduler:dump()
+  --   end)
+  -- )
 
-  timer:start(0, 200, function()
-    local time_now = vim.loop.now()
-    local time_ellapsed = time_now - last_time
+  M._scheduler:init()
+end
 
-    M.scheduler:tick(time_ellapsed)
-    M.scheduler:dump()
+M.scheduler = function()
+  if not M._scheduler then
+    error(debug.traceback "WutCoreScheduler was not initialized.")
+  end
 
-    last_time = time_now
-  end)
+  return M._scheduler
 end
 
 return M

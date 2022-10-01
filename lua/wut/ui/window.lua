@@ -1,120 +1,111 @@
-local renderer = require "wut/ui/renderer"
-local hooks = require "wut/ui/hooks"
+--[[
+Copyright (c) 2022 Lucas Trevisan (lucastrvsn@gmail.com)
 
----@class Component
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
 
----@class WindowOptions
----@field should_close boolean
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
----@class Window
----@field ___type "UIWindow"
----@field ___id integer | nil
----@field ___win integer | nil
----@field ___bufnr integer | nil
----@field ___root_component Component
----@field ___options WindowOptions
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+]]
+
+---@module "wut.ui.window"
+
 local Window = {}
 
----@param root Component
----@param opts WindowOptions
----@return Window
-function Window:new(root, opts)
+local default_config = {
+  relative = "editor",
+  style = "minimal",
+  border = "none",
+}
+
+function Window:new(view, opts)
   local window = {
-    ___type = "UIWindow",
-    ___id = nil,
-    ___win = nil,
-    ___bufnr = nil,
-    ___root_component = nil,
-    ___options = nil,
+    _namespace = nil,
+    _view = nil,
+    _window_name = nil,
+    _window_config = default_config,
+    _window_options = {},
   }
 
-  if type(root) ~= "function" then
-    error "should be function"
+  if type(opts) ~= "table" then
+    error(debug.traceback "config needs to be a table")
   end
 
-  window.___root_component = root
-
-  if opts and type(opts) ~= "table" then
-    vim.pretty_print "ERROR"
+  if type(opts.name) ~= "string" then
+    error(debug.traceback "window needs to a name")
   end
 
-  window.___options = opts or {}
+  window._window_name = opts.name
+  window._namespace = vim.api.nvim_create_namespace(window._window_name)
+
+  if type(opts.window) == "table" then
+    window._window_config = opts.window
+  end
+
+  if type(opts.options) == "table" then
+    window._window_options = opts.options
+  end
+
+  if type(view) ~= "function" then
+    error(debug.traceback "view needs to be a function")
+  end
+
+  local ok, new_view = pcall(view, {
+    namespace = window._namespace,
+  })
+
+  if not ok then
+    error(debug.traceback(new_view))
+  end
+
+  window._view = new_view
 
   return setmetatable(window, {
     __index = self,
   })
 end
 
-function Window:on_init()
-  self.___bufnr = vim.api.nvim_create_buf(false, true)
+function Window:open(focus)
+  focus = focus or false
 
-  if self.___bufnr == 0 then
-    error "ERROR"
+  self:view():on_open()
+
+  local handle =
+    vim.api.nvim_open_win(self._view:render(), focus, self._window_config)
+
+  vim.api.nvim_win_set_hl_ns(handle, self._namespace)
+
+  if vim.tbl_count(self._window_options) > 0 then
+    for k, v in pairs(self._window_options) do
+      vim.api.nvim_win_set_option(handle, k, v)
+    end
   end
-
-  vim.pretty_print "Hello!"
-
-  return true
-end
-
-function Window:on_exit()
-  vim.pretty_print "Goodbye."
-end
-
-function Window:on_open()
-  vim.api.nvim_create_autocmd({ "WinLeave" }, {
-    buffer = self.___bufnr,
-    callback = function()
-      self:close()
-    end,
-  })
-
-  vim.keymap.set("n", "<ESC>", function()
-    self:close()
-  end, {
-    buffer = self.___bufnr,
-  })
-end
-
-function Window:on_close()
-  vim.pretty_print "im closing..."
-end
-
-function Window:render()
-  _G._wut_current_window = self.___id
-
-  local result = renderer.render(self.___root_component)
-
-  hooks.reset()
-
-  if type(result) == "string" then
-    vim.schedule(function()
-      vim.api.nvim_buf_set_lines(self.___bufnr, 0, -1, false, { result })
-    end)
-  end
-end
-
-function Window:open()
-  self:on_open()
-
-  self.___win = vim.api.nvim_open_win(self.___bufnr, true, {
-    relative = "editor",
-    width = 100,
-    height = 6,
-    row = 20,
-    col = 20,
-    style = "minimal",
-    border = "single",
-  })
-
-  vim.api.nvim_set_current_win(self.___win)
 end
 
 function Window:close()
-  if self.___win ~= nil then
-    vim.api.nvim_win_close(self.___win, false)
-    self.___win = nil
-  end
+  self:view():on_close()
 end
+
+function Window:view()
+  return self._view
+end
+
+function Window:namespace()
+  return self._namespace
+end
+
+function Window:set_option() end
 
 return Window
