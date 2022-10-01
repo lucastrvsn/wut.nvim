@@ -1,4 +1,6 @@
-# wut 🦩
+![wut-github](https://user-images.githubusercontent.com/8826449/193430948-32b332fc-bde0-4350-b470-08f3ca8603a6.jpg)
+
+# wut 🍇
 
 Highly opinionated neovim plugins
 
