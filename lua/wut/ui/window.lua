@@ -22,7 +22,32 @@ SOFTWARE.
 
 ---@module "wut.ui.window"
 
+---@class Wut.UI.View
+---@field init fun(): Wut.UI.View
+
+---@class Wut.UI.Window.Options
+---@field relative? string
+---@field width? number
+---@field height? number
+---@field row? number
+---@field col? number
+---@field style? string
+---@field border? string
+
+---@class Wut.UI.Window
+---@field _window_name? string
+---@field _window_config Wut.UI.Window.Options
+---@field _window_options table
+---@field _namespace number
+---@field _view? table | Wut.UI.View
 local Window = {}
+
+---@class Wut.UI.Window.New.Options
+---@field name? string
+---@field window Wut.UI.Window.Options
+---@field options? table
+---@field on_open? function
+---@field on_close? function
 
 local default_config = {
   relative = "editor",
@@ -30,60 +55,72 @@ local default_config = {
   border = "none",
 }
 
-function Window:new(view, opts)
-  local window = {
-    _namespace = nil,
-    _view = nil,
-    _window_name = nil,
-    _window_config = default_config,
-    _window_options = {},
+---@param opts Wut.UI.Window.New.Options
+---@return Wut.UI.Window
+function Window:new(opts)
+  vim.validate {
+    name = { opts.name, "string", true },
+    window = {
+      opts.window,
+      function(value)
+        return pcall(vim.validate, {
+          ["window.relative"] = { value.relative, "string", true },
+          ["window.width"] = { value.width, "number", true },
+          ["window.height"] = { value.height, "number", true },
+          ["window.row"] = { value.row, "number", true },
+          ["window.col"] = { value.col, "number", true },
+          ["window.style"] = { value.style, "string", true },
+          ["window.border"] = { value.border, "string", true },
+        })
+      end,
+    },
+    options = { opts.options, "table", true },
+    on_open = { opts.on_open, "function", true },
+    on_close = { opts.on_close, "function", true },
   }
 
-  if type(opts) ~= "table" then
-    error(debug.traceback "config needs to be a table")
-  end
-
-  if type(opts.name) ~= "string" then
-    error(debug.traceback "window needs to a name")
-  end
-
-  window._window_name = opts.name
-  window._namespace = vim.api.nvim_create_namespace(window._window_name)
-
-  if type(opts.window) == "table" then
-    window._window_config = opts.window
-  end
-
-  if type(opts.options) == "table" then
-    window._window_options = opts.options
-  end
-
-  if type(view) ~= "function" then
-    error(debug.traceback "view needs to be a function")
-  end
-
-  local ok, new_view = pcall(view, {
-    namespace = window._namespace,
-  })
-
-  if not ok then
-    error(debug.traceback(new_view))
-  end
-
-  window._view = new_view
+  local window = {
+    _buffer = nil,
+    _namespace = vim.api.nvim_create_namespace(opts.name or nil),
+    _user_on_close = opts.on_close,
+    _user_on_open = opts.on_open,
+    _window_config = opts.window or default_config,
+    _window_name = opts.name,
+    _window_options = opts.options or {},
+  }
 
   return setmetatable(window, {
     __index = self,
   })
 end
 
-function Window:open(focus)
-  focus = focus or false
+---@return Wut.UI.View | nil
+function Window:get_view()
+  return self._view
+end
 
-  self:view():on_open()
+---@class Wut.UI.Window.Open.Options
+---@field should_focus? boolean
 
-  local handle =
-    vim.api.nvim_open_win(self._view:render(), focus, self._window_config)
+---@param opts? Wut.UI.Window.Open.Options
+function Window:open(opts)
+  opts = opts or {}
+
+  if self._view == nil then
+    error(
+      debug.traceback "A buffer needs to be attached to the window before open."
+    )
+  end
+
+  if type(self._view.on_open) == "function" then
+    self._view:on_open()
+  end
+
+  local handle = vim.api.nvim_open_win(
+    self._view:render(),
+    opts.should_focus or false,
+    self._window_config
+  )
 
   vim.api.nvim_win_set_hl_ns(handle, self._namespace)
 
@@ -95,17 +132,42 @@ function Window:open(focus)
 end
 
 function Window:close()
-  self:view():on_close()
+  if type(self._view.on_close) == "function" then
+    self._view:on_close()
+  end
 end
 
-function Window:view()
-  return self._view
+---@class Wut.UI.Attach.Constructor
+---@field namespace number
+
+---@param constructor fun(config: Wut.UI.Attach.Constructor): table | Wut.UI.View
+---@return Wut.UI.Window
+function Window:attach(constructor)
+  if type(constructor) ~= "function" then
+    error(debug.traceback "constructor needs to be a function")
+  end
+
+  local ok, returned_view = pcall(constructor, {
+    namespace = self._namespace,
+  })
+
+  if not ok then
+    error(debug.traceback(returned_view))
+  end
+
+  if type(returned_view) ~= "table" then
+    error(
+      debug.traceback "the value returned from `constructor` should be a table"
+    )
+  end
+
+  self._view = returned_view
+
+  return self
 end
 
-function Window:namespace()
-  return self._namespace
+function Window:set_option()
+  -- TODO
 end
-
-function Window:set_option() end
 
 return Window

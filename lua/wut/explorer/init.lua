@@ -51,19 +51,13 @@ end
 local M = {
   _folder = {},
   _namespace = vim.api.nvim_create_namespace "aaaa",
-  _current_tick = nil,
-  _state = {},
-  _hashes = {},
-  _buffer = nil,
-  _hidden_buffer = nil,
   _operations = {},
   _window = nil,
+  _view = nil,
 }
 
 function M.setup()
-  M._window = Window:new(function(window)
-    return EditableList:new { namespace = window.namespace }
-  end, {
+  M._window = Window:new({
     name = "@wut.explorer",
     window = {
       relative = "editor",
@@ -79,23 +73,29 @@ function M.setup()
       conceallevel = 2,
       concealcursor = "nc",
     },
-  })
+  }):attach(function(config)
+    M._view = EditableList:new {
+      namespace = config.namespace,
+    }
 
-  -- Creates the highlight groups used by this plugin
-  hl.create {
-    name = "explorer.entry.directory",
-    namespace = M._namespace,
-    style = {
-      link = "@label",
-    },
-  }
-  hl.create {
-    name = "explorer.entry.file",
-    namespace = M._namespace,
-    style = {
-      link = "@text",
-    },
-  }
+    -- Creates the highlight groups used by this plugin
+    hl.create {
+      name = "explorer.entry.directory",
+      namespace = config.namespace,
+      style = {
+        link = "@label",
+      },
+    }
+    hl.create {
+      name = "explorer.entry.file",
+      namespace = config.namespace,
+      style = {
+        link = "@text",
+      },
+    }
+
+    return M._view
+  end)
 
   vim.keymap.set("n", "-", function()
     M.open()
@@ -104,16 +104,17 @@ end
 
 function M.open()
   local cwd = vim.fn.getcwd()
+  local entries = {}
 
   local function create_entry(entry, children)
-    return {
+    table.insert(entries, {
       id = entry.id,
       index = entry.index,
       filename = entry.filename,
       filetype = entry.filetype,
       filepath = entry.filepath,
       children = children or nil,
-    }
+    })
   end
 
   for name, type in path.dir(cwd) do
@@ -127,7 +128,7 @@ function M.open()
       highlight = hl.get "explorer.entry.directory"
     end
 
-    local entry = create_entry {
+    create_entry {
       id = id,
       filename = name,
       filetype = type,
@@ -136,8 +137,10 @@ function M.open()
         hl_filename = highlight,
       },
     }
+  end
 
-    M._window:view():set_entries {
+  for _, entry in ipairs(entries) do
+    M._view:set_entries {
       {
         key = entry.id,
         content = entry.filename,
@@ -145,29 +148,16 @@ function M.open()
     }
   end
 
-  M._window:open(true)
+  M._window:open { should_focus = true }
 end
 
 function M.show()
-  local win = vim.api.nvim_open_win(M._buffer, true, {})
-  vim.api.nvim_open_win(M._hidden_buffer, false, {
-    relative = "editor",
-    width = 28,
-    height = 24,
-    row = 10,
-    col = 61,
-    focusable = false,
-    style = "minimal",
-    border = "none",
-  })
-
-  vim.fn.matchadd("Conceal", "^0x[[:xdigit:]]\\+\\s", 10, -1, {
-    conceal = "",
-    window = win,
-  })
-  vim.api.nvim_win_set_option(win, "conceallevel", 3)
-  vim.api.nvim_win_set_option(win, "concealcursor", "nc")
-  vim.api.nvim_win_set_hl_ns(win, M._namespace)
+  -- vim.fn.matchadd("Conceal", "^0x[[:xdigit:]]\\+\\s", 10, -1, {
+  --   conceal = "",
+  -- })
+  -- vim.api.nvim_win_set_option(win, "conceallevel", 3)
+  -- vim.api.nvim_win_set_option(win, "concealcursor", "nc")
+  -- vim.api.nvim_win_set_hl_ns(win, M._namespace)
 end
 
 ---Table of operations done in the current state
